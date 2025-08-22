@@ -32,12 +32,17 @@ eventuali host con indirizzo statico nella stessa sottorete).
     - H1 possa contattare un server ssh in esecuzione su GW. Ext deve limitare il traffico in uscita (ad esempio file disponibili su Ext e scaricati da qualunque altra
     macchina) a una bandwidth massima di 10MBit/s.
 
+>⚠️ Se l'interfaccia non viene tirata su correttamente esegui prima il flush:
+```scss
+    ip addr flush dev eth0
+    ifup eth0
+```
+
 ```scss
 @h1: vim /etc/network/interfaces
 auto eth0
 iface eth0 inet dhcp
 	hostname H1
-	gateway 10.0.1.126
 ```
 
 ```scss
@@ -45,7 +50,6 @@ iface eth0 inet dhcp
 auto eth0
 iface eth0 inet dhcp
 	hostname H2
-	gateway 10.0.1.126
 ```
 
 ```scss
@@ -55,7 +59,8 @@ HostMin: 10.0.1.129
 @srv: vim /etc/network/interfaces
 auto eth0
 iface eth0 inet static
-	address 10.0.1.129/25
+	address 10.0.1.129
+    netmask 255.255.255.128
 	gateway 10.0.1.254
 ```
 
@@ -69,15 +74,18 @@ HostMax: 10.0.1.126
 @GW: vim /etc/network/interfaces
 auto eth0.10
 iface eth0.10 inet static 
-	address 10.0.1.126/25
+	address 10.0.1.126
+    netmask 255.255.255.128
 	
 auto eth0.20
 iface eth0.20 inet static
-    address 10.0.1.254/25
+    address 10.0.1.254
+    netmask 255.255.255.128
 	
 auto eth1
 iface eth1 inet static
-	address 5.4.3.2/32
+	address 5.4.3.2
+    netmask 255.255.255.255
 
 post-up ip route add 2.3.4.5 via 5.4.3.2
 
@@ -95,7 +103,7 @@ dhcp-option=15,local
 dhcp-host=02:04:06:11:11:11,H1,10.0.1.1
 
 #Trovo il min/max con ipcalc
-dhcp-range=10.0.1.2,10.0.1.120,255.255.255.128,12h
+dhcp-range=10.0.1.2,10.0.1.125,255.255.255.128,12h
 
 @GW: systemctl enable dnsmasq 
 @GW: systemctl restart dnsmasqu 
@@ -115,7 +123,8 @@ net.ipv4.ip_forward=1
 auto eth0
 iface eth0 inet static
 	address 2.3.4.5
-	gateway 5.4.3.2/32
+    netmask 255.255.255.255
+	gateway 5.4.3.2
 ```
 
 @S1
