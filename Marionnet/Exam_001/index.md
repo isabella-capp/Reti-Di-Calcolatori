@@ -166,29 +166,55 @@ iptables -A INPUT   -m state --state ESTABLISHED,RELATED -j ACCEPT
 iptables -A OUTPUT  -m state --state ESTABLISHED,RELATED -j ACCEPT
 iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
 
-# b) DHCP LAN (client -> server 68 -> 67)
-iptables -A INPUT  -i $LAN_IF -p udp --dport 67 --sport 68 -j ACCEPT
-iptables -A OUTPUT -o $LAN_IF -p udp --dport 68 --sport 67 -j ACCEPT
+#------------------------------------------------
+# DHCP LAN 
+#------------------------------------------------
+iptables -A INPUT  -i $LAN_IF  -p udp --sport 67 --dport 68 -j ACCEPT
+iptables -A OUTPUT -o $LAN_IF  -p udp --sport 68 --dport 67 -j ACCEPT
 
+#------------------------------------------------
+# DHCP DMZ 
+#------------------------------------------------
+iptables -A INPUT  -i $DMZ_IF  -p udp --sport 67 --dport 68 -j ACCEPT
+iptables -A OUTPUT -o $DMZ_IF  -p udp --sport 68 --dport 67 -j ACCEPT
+
+#------------------------------------------------
 # DNS LAN
-iptables -A INPUT  -i $LAN_IF -p udp -s 10.0.1.0/25 --dport 53 -j ACCEPT
-iptables -A OUTPUT -o $LAN_IF -p udp -d 10.0.1.0/25 --sport 53 -j ACCEPT
+#------------------------------------------------
+iptables -A INPUT -i $LAN_IF -p udp -s 10.0.1.0/25 --dport 53 -m state --state NEW,ESTABLISHED -j ACCEPT
+iptables -A OUTPUT -o $LAN_IF -p udp -d 10.0.1.0/25 --sport 53 -m state --state ESTABLISHED -j ACCEPT
 
+#------------------------------------------------
 # DNS DMZ
-iptables -A INPUT  -i $DMZ_IF -p udp -s 10.0.1.128/25 --dport 53 -j ACCEPT
-iptables -A OUTPUT -o $DMZ_IF -p udp -d 10.0.1.128/25 --sport 53 -j ACCEPT
+#------------------------------------------------
+iptables -A INPUT -i $DMZ_IF -p udp -s 10.0.1.128/25 --dport 53 -m state --state NEW,ESTABLISHED -j ACCEPT
+iptables -A OUTPUT -o $DMZ_IF -p udp -d 10.0.1.128/25 --sport 53 -m state --state ESTABLISHED -j ACCEPT
 
-# c) H1,H2,Srv → Ext: HTTP (porta 80)
-iptables -A FORWARD -i $LAN_IF -o $EXT_IF -p tcp -s 10.0.1.0/25     -d 2.3.4.5 --dport 80 -m state --state NEW -j ACCEPT
-iptables -A FORWARD -i $DMZ_IF -o $EXT_IF -p tcp -s 10.0.1.128/25  -d 2.3.4.5 --dport 80 -m state --state NEW -j ACCEPT
+#------------------------------------------------
+# H1, H2, Srv -> Ext: HTTP (porta 80)
+#------------------------------------------------
+iptables -t filter -A FORWARD -i $LAN_IF -o $EXT_IF -s 10.0.1.0/25 -d 2.3.4.5 -p tcp --dport 80 -m state --state NEW,ESTABLISHED -j ACCEPT
+iptables -t filter -A FORWARD -i $EXT_IF -o $LAN_IF -s 2.3.4.5 -d 10.0.1.0/25 -p tcp --sport 80 -m state --state ESTABLISHED -j ACCEPT
 
+iptables -t filter -A FORWARD -i $DMZ_IF -o $EXT_IF -s 10.0.1.128/25 -d 2.3.4.5 -p tcp --dport 80 -m state --state NEW,ESTABLISHED -j ACCEPT
+iptables -t filter -A FORWARD -i $EXT_IF -o $DMZ_IF -s 2.3.4.5 -d 10.0.1.128/25 -p tcp --sport 80 -m state --state ESTABLISHED -j ACCEPT
+
+
+#-------------------------------------------------------
 # NAT: Masquerading per traffico in uscita
+#-------------------------------------------------------
 iptables -t nat -A POSTROUTING -o $EXT_IF -j MASQUERADE
 
-# d) Ext → DMZ (Web su Srv)
+#------------------------------------------------
+# EXT -> SRV (porta 80)
+#------------------------------------------------
 iptables -t nat -A PREROUTING -p tcp --dport 80 -i $EXT_IF -s 2.3.4.5 -d 5.4.3.2 -j DNAT --to-destination 10.0.1.129
-iptables -A FORWARD -i $EXT_IF -o $DMZ_IF -p tcp -s 2.3.4.5 -d 10.0.1.129 --dport 80 -m state --state NEW -j ACCEPT
+iptables -t filter -A FORWARD -i $EXT_IF -o $DMZ_IF -s 2.3.4.5 -d 10.0.1.129 -p tcp --dport 80 -m state --state NEW,ESTABLISHED -j ACCEPT
+iptables -t filter -A FORWARD -o $DMZ_IF -i $EXT_IF -s 10.0.1.129 -d 2.3.4.5 -p tcp --sport 80 -m state --state ESTABLISHED -j ACCEPT
 
+#------------------------------------------------
+# H1 -> GW : SSH
+#------------------------------------------------
 # e) SSH da H1 → GW
 iptables -A INPUT  -i $LAN_IF -p tcp -s 10.0.1.1 --dport 22 -m state --state NEW -j ACCEPT
 iptables -A OUTPUT -o $LAN_IF -p tcp -d 10.0.1.1 --sport 22 -m state --state ESTABLISHED -j ACCEPT
@@ -204,7 +230,7 @@ iptables -A OUTPUT -o $LAN_IF -p tcp -d 10.0.1.1 --sport 22 -m state --state EST
     @H2: ip addr show eth0
     ```
     
-    **Atteso:** un IP nel range **`10.0.1.2`** – **`10.0.1.120`** con gateway **`10.0.1.126`** 
+    **Atteso:** un IP nel range **`10.0.1.2`** – **`10.0.1.125`** con gateway **`10.0.1.126`** 
     
 2. I nodi H1, H2, Srv comunicano correttamente con un server Web sul nodo Ext (verificare con nc)
     
@@ -219,8 +245,20 @@ iptables -A OUTPUT -o $LAN_IF -p tcp -d 10.0.1.1 --sport 22 -m state --state EST
     @Srv: nc -l -p 8080
     @Ext: echo "ping from ext" | nc 10.0.1.129 8080
     ```
-    
-4. H1 può accedere al server SSH sul nodo GW
-    ```bash
-    @H1: ssh 10.0.1.126
-    ```
+
+
+| **N°** | **Test**                                     | **Comando da eseguire**                      | **Atteso**                                                 |                   |
+| ------ | -------------------------------------------- | -------------------------------------------- | ---------------------------------------------------------- | ----------------- |
+| 1      | DHCP H1                                      | `@H1: dhclient -v eth0`                      | H1 riceve `10.0.1.1` (IP riservato)                        |                   |
+| 2      | DHCP H2                                      | `@H2: dhclient -v eth0`                      | H2 riceve IP tra `10.0.1.2–10.0.1.125` con GW `10.0.1.126` |                   |
+| 3      | Ping LAN → GW                                | `@H1: ping 10.0.1.126`                       | Risponde                                                   |                   |
+| 4      | Ping DMZ → GW                                | `@Srv: ping 10.0.1.254`                      | Risponde                                                   |                   |
+| 5      | Ping GW → Ext                                | `@GW: ping 2.3.4.5`                          | Risponde                                                   |                   |
+| 6      | DNS LAN                                      | `@H1: nslookup www.google.com 10.0.1.126`    | Risoluzione OK                                             |                   |
+| 7      | DNS DMZ                                      | `@Srv: nslookup www.google.com 10.0.1.254`   | Risoluzione OK                                             |                   |
+| 8      | HTTP LAN → Ext                               | \`@H1: echo "hi"                             | nc 2.3.4.5 80`(server`nc -l -p 80\` su Ext)                | Arriva stringa    |
+| 9      | HTTP DMZ → Ext                               | \`@Srv: echo "hi"                            | nc 2.3.4.5 80\`                                            | Arriva stringa    |
+| 10     | HTTP Ext → Srv (port forwarding)             | `@Srv: nc -l -p 80` ; \`@Ext: echo "ping"    | nc 5.4.3.2 80\`                                            | Srv riceve “ping” |
+| 11     | SSH H1 → GW                                  | `@H1: ssh 10.0.1.126`                        | Connessione stabilita                                      |                   |
+| 12     | SSH H2 → GW                                  | `@H2: ssh 10.0.1.126`                        | Bloccato (corretto)                                        |                   |
+| 13     | Accesso non autorizzato (LAN → Ext porta 22) | `@H1: nc 2.3.4.5 22`                         | Nessuna connessione (DROP)                                 |                   |
