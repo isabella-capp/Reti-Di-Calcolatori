@@ -2,6 +2,24 @@
 
 Quando si lavora con i firewall, è buona pratica seguire un approccio graduale: pulizia delle regole esistenti, definizione di policy di default, e apertura selettiva del traffico necessario.
 
+### Scenario di riferimento
+
+Per coerenza, tutti gli esempi utilizzano questo schema di rete:
+
+- **Firewall (gateway)**
+    - `eth0` → `10.0.1.1`
+    - `eth1` → `192.168.0.1`
+    - `eth2` → `5.4.3.2`
+- LAN `10.0.1.0/25`
+    - H1: `10.0.1.10`
+    - H2: `10.0.1.11`
+- DMZ `192.168.0.0/24`
+    - Web server: `192.168.0.100`
+    - FTP server: `192.168.0.101`
+    - DNS server: `192.168.0.102`
+- Internet
+    - EXT `2.3.4.5`
+
 ### Pulizia delle regole esistenti
 
 ```bash
@@ -95,37 +113,32 @@ Il DNS è il servizio che permette di risolvere nomi di dominio in indirizzi IP.
     Per consentire ai client della LAN o DMZ di interrogare il server DNS sul firewall:
     ```bash
     # Richieste in ingresso al firewall (porta destinazione 53)
-    iptables -A INPUT -i eth0 -p udp -s 10.42.0.0/25 --dport 53 -m state --state NEW,ESTABLISHED -j ACCEPT
+    iptables -A INPUT -i eth0 -p udp -s 10.0.1.0/25 --dport 53 -m state --state NEW,ESTABLISHED -j ACCEPT
 
     # Risposte generate dal firewall verso i client
-    iptables -A OUTPUT -o eth0 -p udp -d 10.42.0.0/25 --sport 53 -m state --state ESTABLISHED -j ACCEPT
+    iptables -A OUTPUT -o eth0 -p udp -d 10.0.1.0/25 --sport 53 -m state --state ESTABLISHED -j ACCEPT
     ```
     Spiegazione porte:
 
     * Le richieste DNS dei client partono generalmente da porte alte casuali verso porta 53 del server.
-
     * Le risposte del server DNS vengono inviate dalla porta 53 verso la porta alta del client.
-
     * Questo schema spiega perché in INPUT si usa `--dport 53` e in OUTPUT `--sport 53`.
 
 2. **Regole DNS per traffico tra subnet (FORWARD)**
     Se il firewall deve inoltrare le richieste DNS dalla DMZ verso un server DNS nella LAN:
     ```bash
-    # Richieste DNS DMZ -> LAN
-    iptables -t filter -A FORWARD -i eth0 -o eth1 -p udp --dport 53 -s 155.185.1.0/29 -d 192.168.1.253 -m state --state NEW,ESTABLISHED -j ACCEPT
+    # Richieste DNS LAN -> DMZ
+    iptables -t filter -A FORWARD -i eth0 -o eth1 -p udp --dport 53 -s 10.0.1.0/25 -d 192.168.0.102 -m state --state NEW,ESTABLISHED -j ACCEPT
 
-    # Risposte DNS LAN -> DMZ
-    iptables -t filter -A FORWARD -i eth1 -o eth0 -p udp --sport 53 -s 192.168.1.253 -d 155.185.1.0/29 -m state --state ESTABLISHED -j ACCEPT
+    # Risposte DNS DMZ -> LAN
+    iptables -t filter -A FORWARD -i eth1 -o eth0 -p udp --sport 53 -s 192.168.0.102 -d 10.0.1.0/25 -m state --state ESTABLISHED -j ACCEPT
     ```
 
     Spiegazione:
 
     - **Il traffico DNS attraversa il firewall:** i pacchetti non sono destinati al firewall stesso, ma devono essere inoltrati tra subnet diverse.
-
     - `--dport 53` per le richieste (arrivano alla porta 53 del server)
-
-    * `--sport 53` per le risposte (partono dalla porta 53 del server verso la porta alta del client)
-
+    - `--sport 53` per le risposte (partono dalla porta 53 del server verso la porta alta del client)
     - La connessione viene tracciata con state `NEW,ESTABLISHED` per le richieste e `ESTABLISHED` per le risposte.
 
 ***Verifica del funzionamento***:
@@ -140,32 +153,32 @@ Il servizio SSH permette di gestire in modo sicuro i dispositivi della rete tram
 
 ```bash
 # Consentire connessioni SSH in ingresso dalla LAN
-iptables -A INPUT -i eth0.42 -p tcp -s 10.42.0.1 --dport 22 -m state --state NEW,ESTABLISHED -j ACCEPT
+iptables -A INPUT -i eth0 -p tcp -s 10.0.1.0/25 --dport 22 -m state --state NEW,ESTABLISHED -j ACCEPT
 
 # Consentire risposte SSH in uscita verso il client
-iptables -A OUTPUT -o eth0.42 -p tcp -d 10.42.0.1 --sport 22 -m state --state ESTABLISHED -j ACCEPT
+iptables -A OUTPUT -o eth0 -p tcp -d 10.0.1.0/25 --sport 22 -m state --state ESTABLISHED -j ACCEPT
 ```
 
 **Spiegazione delle regole:**
 
 - **INPUT**
-    - `-i eth0.42` → pacchetti in arrivo sull’interfaccia della LAN.
+    - `-i eth0` → pacchetti in arrivo sull’interfaccia della LAN.
     - `-p tcp` → SSH utilizza TCP.
     - `--dport 22` → porta standard SSH.
-    - `-s 10.42.0.1` → solo il client autorizzato può connettersi.
+    - `-s <subnet>>` → solo il client autorizzato può connettersi.
     - `--state NEW,ESTABLISHED` → permette nuove connessioni e pacchetti di sessioni già stabilite.
     - `-j ACCEPT` → accetta i pacchetti corrispondenti.
 
 - **OUTPUT**
-   - `-o eth0.42` → pacchetti in uscita sull’interfaccia LAN.
+   - `-o eth0` → pacchetti in uscita sull’interfaccia LAN.
    - `--sport 22` → pacchetti generati dal firewall/host SSH.
-   - `-d 10.42.0.1` → verso il client autorizzato.
+   - `-d <subnet>` → verso il client autorizzato.
    - `--state ESTABLISHED` → solo pacchetti di sessioni già aperte.
    - `-j ACCEPT` → accetta i pacchetti di risposta.
 
 ***Verifica del funzionamento***:
 ```bash
-ssh <ip>
+ssh <ip> #DALLA LAN
 ```
 
 ### HTTP
@@ -175,27 +188,33 @@ Il servizio HTTP utilizza il protocollo TCP sulla porta 80. Per permettere l’a
     Consentire a qualunque host esterno su Internet di connettersi al server web pubblico:
 
     ```bash
-    iptables -t filter -A FORWARD -i eth2 -o eth0 -d 155.185.1.1 -p tcp --dport 80 -m state --state NEW,ESTABLISHED -j ACCEPT
-    iptables -t filter -A FORWARD -i eth0 -o eth2 -s 155.185.1.1 -p tcp --sport 80 -m state --state ESTABLISHED -j ACCEPT
+    iptables -t filter -A FORWARD -i eth2 -o eth1 -d 192.168.0.100 -p tcp --dport 80 -m state --state NEW,ESTABLISHED -j ACCEPT
+    iptables -t filter -A FORWARD -i eth1 -o eth2 -s 192.168.0.100 -p tcp --sport 80 -m state --state ESTABLISHED -j ACCEPT
     ```
     Spiegazione:
-    - `eth2 → eth0`: traffico proveniente da Internet verso la LAN/DMZ.
+    - `eth2 → eth1`: traffico proveniente da Internet verso la DMZ.
     - `--dport 80`: pacchetti destinati al server web.
     - `--state NEW,ESTABLISHED`: consente sia nuove connessioni sia pacchetti di sessioni già aperte.
     - Regola inversa (`--sport 80`): consente le risposte del server verso l’host esterno.
 
     > ⚠️ Se non conosci l’IP sorgente di Internet, puoi omettere la specifica dell’IP sorgente (come in questo esempio).
+
 2. **Connessioni dalla LAN verso il server web**
     Consentire agli host della LAN di raggiungere il server web pubblico:
     ```bash
-    iptables -t filter -A FORWARD -i eth1 -o eth0 -s 192.168.1.0/24 -d 155.185.1.1 -p tcp --dport 80 -m state --state NEW,ESTABLISHED -j ACCEPT
-    iptables -t filter -A FORWARD -i eth0 -o eth1 -s 155.185.1.1 -d 192.168.1.0/24 -p tcp --sport 80 -m state --state ESTABLISHED -j ACCEPT
+    iptables -t filter -A FORWARD -i eth0 -o eth1 -s 10.0.1.0/25 -d 192.168.0.100 -p tcp --dport 80 -m state --state NEW,ESTABLISHED -j ACCEPT
+    iptables -t filter -A FORWARD -i eth1 -o eth0 -s 192.168.0.100 -d 10.0.1.0/25 -p tcp --sport 80 -m state --state ESTABLISHED -j ACCEPT
     ```
+    Spiegazione:
+    - `-i eth0 -o eth1` → traffico originato dalla LAN verso la DMZ.
+    - `--dport 80` → porta di destinazione HTTP.
+    - Risposte tracciate con `--sport 80` e stato ESTABLISHED.
+
 3. **Connessioni da un host pubblico EXT verso un server privato SRV**
     Se il server web è privato (es. DMZ), devi consentire a uno specifico host pubblico di contattarlo:
     ```bash
-    iptables -t filter -A FORWARD -i eth1 -o eth0.43 -s 2.20.20.20 -p tcp --dport 80 -m state --state NEW,ESTABLISHED -j ACCEPT
-    iptables -t filter -A FORWARD -o eth1 -i eth0.43 -d 2.20.20.20  -p tcp --sport 80 -m state --state ESTABLISHED -j ACCEPT
+    iptables -t filter -A FORWARD -i eth2 -o eth1 -s 2.3.4.5 -d 192.168.0.100 -p tcp --dport 80 -m state --state NEW,ESTABLISHED -j ACCEPT
+    iptables -t filter -A FORWARD -o eth1 -i eth2 -d 192.168.0.100 -d 2.3.4.5 -p tcp --sport 80 -m state --state ESTABLISHED -j ACCEPT
     ```
     > ⚠️ se il server è privato, devi anche configurare la regola di PREROUTING per il NAT, in modo che il traffico in ingresso venga inoltrato correttamente al server privato.
 
@@ -213,7 +232,6 @@ nc -l -p 80         # Server
 nc -vz <IP> 80      # Client
 ```
 - `-l -p 80` → ascolta sulla porta 80 del server
-
 - `-vz` → connessione di test dal client (verbose + scan della porta)
 
 Se la connessione viene stabilita, significa che le regole FORWARD permettono correttamente il traffico HTTP tra client e server.
@@ -258,14 +276,14 @@ Il NAT (Network Address Translation) viene utilizzato per tradurre indirizzi IP 
     Il **DNAT** (Destination NAT) permette di pubblicare un servizio interno rendendolo raggiungibile da Internet tramite l’IP pubblico del firewall.
 
     ```bash
-    # Se un host da Internet (1.1.1.1) prova a fare SSH verso l’IP pubblico del firewall (2.2.2.2),
-    # il pacchetto viene “girato” al server privato interno 192.168.1.1.
-    iptables -t nat -A PREROUTING -p tcp --dport 22 -i eth2 -s 1.1.1.1 -d 2.2.2.2 -j DNAT --to-destination 192.168.1.1
+    # Port forwarding SSH: host esterno 2.3.4.5 prova a fare SSH su 5.4.3.2 (IP pubblico firewall)
+    # Il traffico viene inoltrato al server privato in DMZ 192.168.0.100
+    iptables -t nat -A PREROUTING -p tcp --dport 22 -i eth2 -s 2.3.4.5 -d 5.4.3.2 -j DNAT --to-destination 192.168.0.100
     ```
     ***Verifica del funzionamento***
     ```bash
-    ssh 2.2.2.2   # Da Internet
-    # Il firewall inoltrerà la connessione verso 192.168.1.1
+    ssh 5.4.3.2   # Da host esterno 2.3.4.5
+    # Il firewall inoltra la connessione verso 192.168.0.100
     ```
 
 - **Da Rete privata → Internet**
@@ -275,14 +293,14 @@ Il NAT (Network Address Translation) viene utilizzato per tradurre indirizzi IP 
     Il **MASQUERADE** è una forma speciale di SNAT usata quando l’IP pubblico è dinamico (tipico negli accessi domestici o tramite PPPoE).
 
     ```bash
-    # Tutti i pacchetti provenienti dalla rete privata 192.168.1.0/24,
-    # quando escono su eth1 verso Internet, assumono come sorgente
-    # l’IP pubblico assegnato all’interfaccia eth1.
-    iptables -t nat -A POSTROUTING -o eth1 -s 192.168.1.0/24 -j MASQUERADE
+    # Tutti i pacchetti provenienti dalla LAN 10.0.1.0/25 o DMZ 192.168.0.0/24,
+    # quando escono su eth2 verso Internet, assumono come sorgente l’IP pubblico 5.4.3.2
+    iptables -t nat -A POSTROUTING -o eth2 -s 10.0.1.0/25 -j MASQUERADE
+    iptables -t nat -A POSTROUTING -o eth2 -s 192.168.0.0/24 -j MASQUERADE
     ```
     ***Verifica del funzionamento***
     ```bash
-    tcpdump -i eth1
+    tcpdump -i eth2
     # Controllare che i pacchetti in uscita abbiano come IP sorgente quello pubblico del firewall
     ```
 
@@ -302,18 +320,22 @@ Esistono due modalità operative:
 
 > Consentire connessioni *TCP* sulla porta 21 da Internet verso il server *FTP ftp.fake.com* e consentire le risposte
 ```bash
-iptables -t filter -A FORWARD -i eth2 -o eth0 -d 155.185.1.2 -p tcp --dport 21 -m state --state NEW,ESTABLISED -j ACCEPT
-iptables -t filter -A FORWARD -i eth0 -o eth2 -s 155.185.1.2 -p tcp --sport 21 -m state --state ESTABLISHED -j ACCEPT
+# Connessione control (porta 21)
+iptables -t filter -A FORWARD -i eth2 -o eth1 -d 192.168.0.101 -p tcp --dport 21 -m state --state NEW,ESTABLISHED -j ACCEPT
+iptables -t filter -A FORWARD -i eth1 -o eth2 -s 192.168.0.101 -p tcp --sport 21 -m state --state ESTABLISHED -j ACCEPT
+
 ```
 > Per il trasferimento dati il server apre una nuova connessione TCP da porta 20 (ftp-data) verso una porta sul client
 ```bash
-iptables -A FORWARD -p tcp --sport ftp-data -o eth2 -i eth0 -s 155.185.1.2 -m state --state RELATED,ESTABLISHED -j ACCEPT
-iptables -A FORWARD -p tcp --dport ftp-data -i eth2 -o eth0 -d 155.185.1.2 -m state --state ESTABLISHED -j ACCEPT
+# Trasferimento dati (porta 20, active mode)
+iptables -t filter -A FORWARD -p tcp --sport 20 -i eth1 -o eth2 -s 192.168.0.101 -m state --state RELATED,ESTABLISHED -j ACCEPT
+iptables -t filter -A FORWARD -p tcp --dport 20 -i eth2 -o eth1 -d 192.168.0.101 -m state --state ESTABLISHED -j ACCEPT
 ```
 
 ***Verifica del funzionamento***:
 ```bash
-ftp ftp.fake.com
+ftp 5.4.3.2    # Da host esterno
+# Controllare che login e trasferimento dati funzionino correttamente
 ```
 
 
