@@ -161,3 +161,28 @@ else
     exit 1
 fi
 ```
+
+## Come eseguire gli script
+
+Su ciascuno dei terminali
+ ```bash
+ vim script.sh 
+ chmod 700 script.sh
+ ./script.sh
+ ```
+
+> **⚠️** Ricordiamo di tirare su tutte le interfacce con `ifup -a`
+
+## Verificare la connettività
+| Test                             | Origine → Destinazione   | Comando               | Atteso                                                     | Esito |
+| -------------------------------- | ------------------------ | --------------------- | ---------------------------------------------------------- | ----- |
+| 1. Ping intra-subnet (LAN 10)    | H1 → H2                  | `ping 192.168.10.2`   | Risposte ICMP ricevute                                     |  ✅    |
+| 2. ARP intra-subnet (LAN 10)     | H1 → H2                  | `arping 192.168.10.2` | Risposte ARP ricevute                                      | ✅     |
+| 3. Ping intra-subnet (LAN 20)    | H3 → H4                  | `ping 192.168.20.2`   | Risposte ICMP ricevute                                     |  ✅    |
+| 4. ARP intra-subnet (LAN 20)     | H3 → H4                  | `arping 192.168.20.2` | Risposte ARP ricevute                                      | ✅     |
+| 5. Isolamento VLAN               | H1 → H3                  | `arping 192.168.20.1` | Nessuna risposta (ARP non deve passare)                    | ❌     |
+| 6. Isolamento VLAN               | H2 → H4                  | `arping 192.168.20.2` | Nessuna risposta                                           | ❌     |
+| 7. Routing inter-VLAN            | H1 → H3                  | `ping 192.168.20.1`   | Risposte ICMP (tramite GW 192.168.10.254 ↔ 192.168.20.254) | ✅     |
+| 8. Routing inter-VLAN            | H2 → H4                  | `ping 192.168.20.2`   | Risposte ICMP (tramite GW)                                 | ✅     |
+| 9. Default Gateway reachability  | H1 → GW (192.168.10.254) | `ping 192.168.10.254` | Risposte ICMP ricevute                                     | ✅     |
+| 10. Default Gateway reachability | H3 → GW (192.168.20.254) | `ping 192.168.20.254` | Risposte ICMP ricevute                                     | ✅     |
