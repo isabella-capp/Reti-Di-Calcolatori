@@ -6,6 +6,8 @@ Si chiede di realizzare una rete come quella in figura, in cui GW fornisce conne
 sottoreti).
  2. Garantire scambio dati tra le due sottoreti passando per GW
 
+![image.png](/Marionnet/img/image_2.png)
+
 **Elementi di valutazione:**
  1. Connettività tra i nodi della rete `192.168.10.0/24` (verificare con ping e arping)
  2. Connettività tra i nodi della rete `192.168.20.0/24` (verificare con ping e arping)
