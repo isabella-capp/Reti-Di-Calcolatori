@@ -11,6 +11,8 @@ Si chiede di realizzare una rete come quella in figura, in cui GW fornisce conne
 Ext
  4. Realizzare un **servizio di DNAT** in modo che Ext possa contattare un server su H3 alla porta 8080
 
+![image.png](/Marionnet/img/image_3.png)
+
 **Elementi di valutazione:**
  1. Il sistema DHCP fornisce parametri corretti di configurazione della rete per i nodi H1, H2
  2. Il sistema DHCP fornisce parametri corretti di configurazione della rete per il nodo H3
@@ -90,8 +92,9 @@ iface eth0 inet dhcp
 
 echo "$interfaces" >> /etc/network/interfaces
 echo "H3 network configuration added."
+```
 
-### GW
+## GW
 
 ```bash
 #!/bin/bash
@@ -169,6 +172,22 @@ else
     exit 1
 fi
 
+```
+
+## EXT
+
+```bash
+#!/bin/bash
+
+interfaces="
+auto eth0
+iface eth0 inet static
+        address 2.2.2.2
+        netmask 255.255.255.255
+"
+
+echo "$interfaces" >> /etc/network/interfaces
+echo "EXT network configuration added."
 ```
 
 ## Configurazione Firewall
