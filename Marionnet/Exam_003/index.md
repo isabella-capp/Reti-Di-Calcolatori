@@ -87,6 +87,7 @@ echo "H2 network configuration added."
 interfaces="
 auto eth0
 iface eth0 inet dhcp
+        hwaddress 02:04:06:11:22:33
         hostname H3
 "
 
@@ -184,6 +185,7 @@ auto eth0
 iface eth0 inet static
         address 2.2.2.2
         netmask 255.255.255.255
+        gateway 1.1.1.1
 "
 
 echo "$interfaces" >> /etc/network/interfaces
@@ -218,15 +220,12 @@ iptables -t nat -A PREROUTING -p tcp --dport 8080 -i $EXT_IF -s 2.2.2.2 -d 1.1.1
 
 | Test                         | Origine → Destinazione       | Comando                                       | Atteso                                    | Esito |
 | ---------------------------- | ---------------------------- | --------------------------------------------- | ----------------------------------------- | ----- |
-| 1. DHCP H1                   | H1 → GW                      | `dhclient eth0`                               | Riceve IP 10.0.1.10–20, GW=10.0.1.254     | ✅     |
-| 2. DHCP H2                   | H2 → GW                      | `dhclient eth0`                               | Riceve IP 10.0.1.10–20, GW=10.0.1.254     | ✅     |
-| 3. DHCP H3 (MAC binding)     | H3 → GW                      | `dhclient eth0`                               | Riceve **10.0.1.21**, GW=10.0.1.254       | ✅     |
-| 4. Connettività LAN          | H1 ↔ H2                      | `ping 10.0.1.XX`                              | Risposte ICMP                             | ✅     |
-| 5. Connettività LAN          | H1 ↔ H3                      | `ping 10.0.1.21`                              | Risposte ICMP                             | ✅     |
-| 6. Ping verso GW             | H1/H2/H3 → GW                | `ping 10.0.1.254`                             | Risposte ICMP                             | ✅     |
-| 7. Ping Ext da GW            | GW → Ext                     | `ping 2.2.2.2`                                | Risposte ICMP                             | ✅     |
-| 8. Ping Ext da H1            | H1 → Ext                     | `ping 2.2.2.2`                                | Risposte ICMP (passa per SNAT/MASQUERADE) | ✅     |
-| 9. Ping Ext da H2            | H2 → Ext                     | `ping 2.2.2.2`                                | Risposte ICMP                             | ✅     |
-| 10. Ping Ext da H3           | H3 → Ext                     | `ping 2.2.2.2`                                | Risposte ICMP                             | ✅     |
-| 11. Test DNAT (server su H3) | Ext → GW (`nc 1.1.1.1 8080`) | Deve raggiungere H3:8080                      |                                          |     ✅  |
-| 12. Verifica reverse path    | H3 risponde ad Ext           | `nc -l 8080` su H3 + `nc 1.1.1.1 8080` da Ext | Connessione stabilita                     | ✅     |
+| 1. Connettività LAN          | H1 ↔ H2                      | `ping 10.0.1.XX`                              | Risposte ICMP                             | ✅     |
+| 2. Connettività LAN          | H1 ↔ H3                      | `ping 10.0.1.21`                              | Risposte ICMP                             | ✅     |
+| 3. Ping verso GW             | H1/H2/H3 → GW                | `ping 10.0.1.254`                             | Risposte ICMP                             | ✅     |
+| 4. Ping Ext da GW            | GW → Ext                     | `ping 2.2.2.2`                                | Risposte ICMP                             | ✅     |
+| 5. Ping Ext da H1            | H1 → Ext                     | `ping 2.2.2.2` + `tcpdump -i eth0 -n icmp` da ext | Risposte ICMP (passa per SNAT/MASQUERADE) | ✅     |
+| 6. Ping Ext da H2            | H2 → Ext                     | `ping 2.2.2.2`                                | Risposte ICMP                             | ✅     |
+| 7. Ping Ext da H3           | H3 → Ext                     | `ping 2.2.2.2`                                | Risposte ICMP                             | ✅     |
+| 8. Test DNAT (server su H3) | Ext → GW (`nc 1.1.1.1 8080`) | Deve raggiungere H3:8080                      |                                          |     ✅  |
+| 9. Verifica reverse path    | H3 risponde ad Ext           | `nc -l 8080` su H3 + `nc 1.1.1.1 8080` da Ext | Connessione stabilita                     | ✅     |
