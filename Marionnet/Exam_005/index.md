@@ -12,8 +12,7 @@ effettua NAT. Tutto deve essere realizzato usando un unico switch configurando o
 - DNAT per il protocollo SMTP sul nodo MailSrv
 Si chiede inoltre di configurare le opportune regole di firewalling in modo che i server accettino
 esclusivamente:
-    - Traffico necessario al servizio rilevante per ciascun server (HTTP per WebSrv e SMTP per
-    MailSrv)
+    - Traffico necessario al servizio rilevante per ciascun server (HTTP per WebSrv e SMTP per MailSrv)
     - Traffico ICMP
 
 ![image.png](/Marionnet/img/image_5.png)
@@ -172,6 +171,8 @@ else
     exit 1
 fi
 
+iptables -t nat -A POSTROUTING -o eth0.20 -s 192.168.100.0/24 -j MASQUERADE
+
 ```
 
 ### WebSrv
@@ -243,5 +244,48 @@ else
     echo "Failed to reload sysctl configuration."
     exit 1
 fi
+
+# Interfacce
+LAN_IF="eth0.30"     # verso Client
+SRV_IF="eth0.10"     # verso i server
+EXT_IF="eth0.20"     # verso l'esterno
+
+# Svuota tutte le regole esistenti
+iptables -F
+iptables -t nat -F
+
+# Elimina tutte le catene personalizzate
+iptables -X
+
+#-------------------------------------------------------
+# Policy di default (blocco totale)
+#-------------------------------------------------------
+iptables -t filter -P INPUT DROP
+iptables -t filter -P OUTPUT DROP
+iptables -t filter -P FORWARD DROP
+
+#-------------------------------------------------------
+# DNAT: Port Forwarding
+#-------------------------------------------------------
+iptables -t nat -A PREROUTING -p tcp --dport 80 -i $EXT_IF -j DNAT --to-destination 192.168.200.1:80
+
+iptables -t nat -A PREROUTING -p tcp --dport 25 -i $EXT_IF -s 2.2.2.2 -d 1.1.1.1 -j DNAT --to-destination 192.168.200.2:25
+
+#-------------------------------------------------------
+# FORWARD
+#-------------------------------------------------------
+iptables -t filter -A FORWARD -i $EXT_IF -o $SRV_IF -s 192.168.100.0/24 -d 192.168.200.1 -p tcp --dport 80 -m state --state NEW,ESTABLISHED -j ACCEPT
+iptables -t filter -A FORWARD -i $SRV_ID -o $EXT_IF -s 192.168.200.1 -d 192.168.100.0/24 -p tcp --sport 80 -m state --state ESTABLISHED -j ACCEPT
+
+
+iptables -t filter -A FORWARD -i $EXT_IF -o $SRV_IF -s 192.168.100.0/24 -d 192.168.200.2 -p tcp --dport 25 -m state --state NEW,ESTABLISHED -j ACCEPT
+iptables -t filter -A FORWARD -i $SRV_ID -o $EXT_IF -s 192.168.200.2 -d 192.168.100.0/24 -p tcp --sport 25 -m state --state ESTABLISHED -j ACCEPT
+
+#-------------------------------------------------------
+# ICMP
+#-------------------------------------------------------
+iptables -t filter -A INPUT   -p icmp -j ACCEPT
+iptables -t filter -A OUTPUT  -p icmp -j ACCEPT
+iptables -t filter -A FORWARD -p icmp -j ACCEPT
 
 ```
