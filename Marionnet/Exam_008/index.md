@@ -152,7 +152,7 @@ no-resolv
 expand-hosts
 domain=local
 
-interface=eth0
+interface=eth0.20
 dhcp-option=3,192.168.20.254  #server DHCP - IP della sua VLAN
 dhcp-option=6,192.168.20.254  #server DNS
 dhcp-option=15,local
