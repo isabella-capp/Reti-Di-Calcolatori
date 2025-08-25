@@ -56,6 +56,20 @@ numero di porta è fornito dal servizio)
    - **Indirizzo IP**: 5.5.5.5
    - **Netmask**: 255.255.255.255
 
+## Configurazione VLAN
+
+```bash
+vlan/create 10
+vlan/create 20
+
+port/setvlan 1 20
+port/setvlan 2 20
+port/setvlan 3 10
+
+vlan/addport 10 4
+vlan/addport 20 4
+
+```
 
 ## Configurazione Rete
 
@@ -124,10 +138,10 @@ iface eth0.20 inet static
 
 auto eth1
 iface eth1 inet static
-        address 1.1.1.1
+        address 3.3.3.3
         netmask 255.255.255.255
 
-post-up ip route add 2.2.2.2 via 1.1.1.1 dev eth1
+post-up ip route add 5.5.5.5 via 3.3.3.3 dev eth1
 "
 
 echo "$interfaces" >> /etc/network/interfaces
