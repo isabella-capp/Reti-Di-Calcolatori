@@ -72,16 +72,14 @@ vlan/create 10
 vlan/create 20
 vlan/create 30
 
-port/setvlan 1 30
-port/setvlan 2 20
-port/setvlan 3 10
-port/setvlan 4 10
-port/setvlan 5 20
+port/setvlan 1 30  # porta 1 → VLAN 30 → Client
+port/setvlan 3 10  # porta 3 → VLAN 10 → WebSrv
+port/setvlan 4 10  # porta 4 → VLAN 10 → MailSrv
 
-
-```
-
-## Configurazioni IP
+vlan/addport 10 5
+vlan/addport 20 5
+vlan/addport 30 2
+vlan/addport 20 2
 
 ### client
 
@@ -113,6 +111,9 @@ auto eth0.30
 iface eth0.30 inet static
         address 192.168.100.254
         netmask 255.255.255.0
+
+post-up ip route add 1.1.1.1 dev eth0.20
+post-up ip route add 192.168.200.0/24 via 1.1.1.1
 "
 
 echo "$interfaces" >> /etc/network/interfaces
@@ -123,7 +124,7 @@ no-resolv
 expand-hosts
 domain=local
 
-interface=eth0
+interface=eth0.30
 dhcp-option=3,192.168.100.254  #server DHCP - IP della sua VLAN
 dhcp-option=6,192.168.100.254  #server DNS
 dhcp-option=15,local
@@ -184,6 +185,7 @@ iface eth0.10 inet static
         address 192.168.200.1
         netmask 255.255.255.0
         gateway 192.168.200.254
+        
 "
 
 echo "$interfaces" >> /etc/network/interfaces
@@ -222,10 +224,16 @@ auto eth0.20
 iface eth0.20 inet static
         address 1.1.1.1
         netmask 255.255.255.255
+
+post-up ip route add 2.2.2.2 dev eth0.20
+post-up ip route add 192.168.100.0/24 via 2.2.2.2
 "
 
 echo "$interfaces" >> /etc/network/interfaces
 echo "GW network configuration added."
+
+echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
+echo "Ip configurato correttamente."
 
 sysctl -p /etc/sysctl.conf
 if [ $? -eq 0 ]; then
