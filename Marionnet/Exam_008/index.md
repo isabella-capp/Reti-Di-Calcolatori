@@ -13,7 +13,7 @@ Si chiede di realizzare una rete come quella in figura, in cui GW fornisce conne
  6. Fornire un servizio di DNAT per consentire a Ext di contattare un server Web sul nodo Srv (il 
 numero di porta è fornito dal servizio)
 
-![image.png](/Marionnet/img/image_8.png)
+![image.png](/Marionnet/img/image_7.png)
 
 **Elementi di valutazione:**
  1. Il sistema DHCP fornisce parametri corretti di configurazione della rete per i nodi H1, H2
