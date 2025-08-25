@@ -64,7 +64,7 @@ echo "$interfaces" >> /etc/network/interfaces
 echo "H1 network configuration added."
 ```
 
-## H2
+### H2
 
 ```bash
 #!/bin/bash
@@ -79,7 +79,7 @@ echo "$interfaces" >> /etc/network/interfaces
 echo "H2 network configuration added."
 ```
 
-## H3
+### H3
 
 ```bash
 #!/bin/bash
@@ -95,7 +95,7 @@ echo "$interfaces" >> /etc/network/interfaces
 echo "H3 network configuration added."
 ```
 
-## GW
+### GW
 
 ```bash
 #!/bin/bash
@@ -175,7 +175,7 @@ fi
 
 ```
 
-## EXT
+### EXT
 
 ```bash
 #!/bin/bash
