@@ -246,6 +246,8 @@ else
     exit 1
 fi
 
+ifup -a
+
 # Interfacce
 LAN_IF="eth0.30"     # verso Client
 SRV_IF="eth0.10"     # verso i server
@@ -270,17 +272,17 @@ iptables -t filter -P FORWARD DROP
 #-------------------------------------------------------
 iptables -t nat -A PREROUTING -p tcp --dport 80 -i $EXT_IF -j DNAT --to-destination 192.168.200.1:80
 
-iptables -t nat -A PREROUTING -p tcp --dport 25 -i $EXT_IF -s 2.2.2.2 -d 1.1.1.1 -j DNAT --to-destination 192.168.200.2:25
+iptables -t nat -A PREROUTING -p tcp --dport 25 -i $EXT_IF -j DNAT --to-destination 192.168.200.2:25
 
 #-------------------------------------------------------
 # FORWARD
 #-------------------------------------------------------
-iptables -t filter -A FORWARD -i $EXT_IF -o $SRV_IF -s 192.168.100.0/24 -d 192.168.200.1 -p tcp --dport 80 -m state --state NEW,ESTABLISHED -j ACCEPT
-iptables -t filter -A FORWARD -i $SRV_ID -o $EXT_IF -s 192.168.200.1 -d 192.168.100.0/24 -p tcp --sport 80 -m state --state ESTABLISHED -j ACCEPT
+iptables -t filter -A FORWARD -i $EXT_IF -o $SRV_IF -p tcp --dport 80 -m state --state NEW,ESTABLISHED -j ACCEPT
+iptables -t filter -A FORWARD -i $SRV_IF -o $EXT_IF -p tcp --sport 80 -m state --state ESTABLISHED -j ACCEPT
 
 
-iptables -t filter -A FORWARD -i $EXT_IF -o $SRV_IF -s 192.168.100.0/24 -d 192.168.200.2 -p tcp --dport 25 -m state --state NEW,ESTABLISHED -j ACCEPT
-iptables -t filter -A FORWARD -i $SRV_ID -o $EXT_IF -s 192.168.200.2 -d 192.168.100.0/24 -p tcp --sport 25 -m state --state ESTABLISHED -j ACCEPT
+iptables -t filter -A FORWARD -i $EXT_IF -o $SRV_IF -p tcp --dport 25 -m state --state NEW,ESTABLISHED -j ACCEPT
+iptables -t filter -A FORWARD -i $SRV_IF -o $EXT_IF -p tcp --sport 25 -m state --state ESTABLISHED -j ACCEPT
 
 #-------------------------------------------------------
 # ICMP
