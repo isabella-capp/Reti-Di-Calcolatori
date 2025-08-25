@@ -180,8 +180,8 @@ fi
 #!/bin/bash
 
 interfaces="
-auto eth0.10
-iface eth0.10 inet static
+auto eth0
+iface eth0 inet static
         address 192.168.200.1
         netmask 255.255.255.0
         gateway 192.168.200.254
@@ -198,8 +198,8 @@ echo "WebSrv network configuration added."
 #!/bin/bash
 
 interfaces="
-auto eth0.10
-iface eth0.10 inet static
+auto eth0
+iface eth0 inet static
         address 192.168.200.2
         netmask 255.255.255.0
         gateway 192.168.200.254
@@ -208,6 +208,7 @@ iface eth0.10 inet static
 echo "$interfaces" >> /etc/network/interfaces
 echo "MailSrv network configuration added."
 ```
+>⚠️ **Attenzione**: Anche se MailSrv e WebSrv sono nella VLAN `eth0.10` è sbagliato configurarli con `auto eth0.10` perchè i link della VLAN sono di tipo access, per cui non riuscirebbero ad interpretare correttamente il TAG VLAN.
 
 ### GWS
 
