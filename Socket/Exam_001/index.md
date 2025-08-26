@@ -1,3 +1,0 @@
-Si vuole realizzare un’applicazione client/server in cui il server comunica al client il proprio hostname. Il server non deve prevedere parametri dai linea di comando. Il server si pone in ascolto sulla porta 2525 mediante il protocollo TCP. Il client prevede come unica parametro il nome del server a cui connettersi (la porta anche in questo caso e hardcoded e corrisponde alla porta 2525). Quando il client si connette, il server trasmette il seguente messaggio di benvenuto: `Welcome from <hostname>`, dove hostname è il nome del server. Il client dovrà mostrare quanto ricevuto dal server sul suo standard output e chiudere la connessione.
-
-In Python la funzione che si puo usare a tale scopo è `socket.gethostname()` che ritorna una stringa.
