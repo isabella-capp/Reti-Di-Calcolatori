@@ -64,7 +64,7 @@ ping)
 - **Interfaccia**: eth0.20
    - **Indirizzo IP**: 192.168.2.254
    - **Netmask**: 255.255.255.0
-- **Interfaccia**: eth1
+- **Interfaccia**: eth0
    - **Indirizzo IP**: 1.1.1.1
    - **Netmask**: 255.255.255.255
 
@@ -72,3 +72,172 @@ ping)
 - **Interfaccia**: eth0
    - **Indirizzo IP**: 2.2.2.2
    - **Netmask**: 255.255.255.255
+
+## Configurazione VLAN
+
+```bash
+vlan/create 10
+vlan/create 20
+
+port/setvlan 1 10
+port/setvlan 2 10
+port/setvlan 3 20
+port/setvlan 4 20
+
+vlan/addport 10 5
+vlan/addport 20 5
+```
+
+## Configurazione IP
+
+### H1
+
+```bash
+#!/bin/bash
+
+interfaces="
+auto eth0
+iface eth0 inet static
+         address 192.168.1.2
+         netmask 255.255.255.0
+         gateway 192.168.1.254
+"
+
+echo "$interfaces" >> /etc/network/interfaces
+echo "H1 network configuration added."
+```
+
+### Srv1
+
+```bash
+#!/bin/bash
+
+interfaces="
+auto eth0
+iface eth0 inet static
+         address 192.168.1.1
+         netmask 255.255.255.0
+         gateway 192.168.1.254
+"
+
+echo "$interfaces" >> /etc/network/interfaces
+echo "Srv1 network configuration added."
+```
+
+
+### Srv2
+
+```bash
+#!/bin/bash
+
+interfaces="
+auto eth0
+iface eth0 inet static
+         address 192.168.2.1
+         netmask 255.255.255.0
+         gateway 192.168.2.254
+"
+
+echo "$interfaces" >> /etc/network/interfaces
+echo "Srv2 network configuration added."
+```
+
+### H2
+
+```bash
+#!/bin/bash
+
+interfaces="
+auto eth0
+iface eth0 inet static
+         address 192.168.2.2
+         netmask 255.255.255.0
+         gateway 192.168.2.254
+"
+
+echo "$interfaces" >> /etc/network/interfaces
+echo "H2 network configuration added."
+```
+
+
+### GW
+
+```bash
+#!/bin/bash
+
+interfaces="
+auto eth0.10
+iface eth0.10 inet static
+         address 192.168.1.254
+         netmask 255.255.255.0
+
+auto eth0.20
+iface eth0.20 inet static
+         address 192.168.2.254
+         netmask 255.255.255.0
+
+auto eth1
+iface eth1 inet static
+         address 1.1.1.1
+         netmask 255.255.255.255
+
+post-up ip route add 2.2.2.2 dev eth1
+"
+
+echo "$interfaces" >> /etc/network/interfaces
+echo "GW network configuration added."
+
+echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
+echo "Ip configurato correttamente."
+
+sysctl -p /etc/sysctl.conf
+if [ $? -eq 0 ]; then
+    echo "sysctl configuration reloaded successfully."
+else
+    echo "Failed to reload sysctl configuration."
+    exit 1
+fi
+
+ifup -a
+
+EXT_IF="eth1"
+
+# Pulizia regole esistenti
+iptables -F
+iptables -t nat -F
+iptables -X
+
+#-------------------------------------------------------
+# SNAT: Masquerading per traffico in uscita
+#-------------------------------------------------------
+iptables -t nat -A POSTROUTING -o $EXT_IF -j MASQUERADE
+
+#-------------------------------------------------------
+# DNAT: Port Forwarding
+#-------------------------------------------------------
+iptables -t nat -A PREROUTING -p tcp --dport 80 -i $EXT_IF -j DNAT --to-destination 192.168.1.1:80
+
+iptables -t nat -A PREROUTING -p tcp --dport 8000 -i $EXT_IF -j DNAT --to-destination 192.168.2.1:80
+```
+
+### EXT
+
+```bash
+#!/bin/bash
+
+interfaces="
+auto eth0
+iface eth0 inet static
+         address 2.2.2.2
+         netmask 255.255.255.255
+         gateway 1.1.1.1
+"
+
+echo "$interfaces" >> /etc/network/interfaces
+echo "EXT network configuration added."
+```
+
+
+
+
+
