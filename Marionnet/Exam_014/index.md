@@ -254,11 +254,6 @@ LAN_IF="eth0.42"     # verso H1, H2 (LAN)
 DMZ_IF="eth0.43"     # verso SRV
 EXT_IF="eth1"        # verso Ext / Internet
 
-# Pulizia regole esistenti
-iptables -F
-iptables -t nat -F
-iptables -X
-
 # Policy di default (blocco totale)
 iptables -t filter -P INPUT DROP
 iptables -t filter -P OUTPUT DROP
