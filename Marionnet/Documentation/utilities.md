@@ -312,14 +312,19 @@ Il NAT (Network Address Translation) viene utilizzato per tradurre indirizzi IP 
     Il **DNAT** (Destination NAT) permette di pubblicare un servizio interno rendendolo raggiungibile da Internet tramite l’IP pubblico del firewall.
 
     ```bash
-    # Port forwarding SSH: host esterno 2.3.4.5 prova a fare SSH su 5.4.3.2 (IP pubblico firewall)
-    # Il traffico viene inoltrato al server privato in DMZ 192.168.0.100
-    iptables -t nat -A PREROUTING -p tcp --dport 22 -i eth2 -s 2.3.4.5 -d 5.4.3.2 -j DNAT --to-destination 192.168.0.100
+    IP_SRV_HTTP=155.185.1.1
+
+    # EXT -> SRV: HTTP -> 80
+    iptables -t nat -A PREROUTING -p tcp --dport 8080 -i $EXT_IF -j DNAT --to-destination $IP_SRV_HTTP:80
     ```
+
+    > ⚠️ Dopo un DNAT, serve anche permettere il forwarding verso il server interno (**vedi sezione HTTP**)
+
     ***Verifica del funzionamento***
     ```bash
-    ssh 5.4.3.2   # Da host esterno 2.3.4.5
-    # Il firewall inoltra la connessione verso 192.168.0.100
+    nc -l -p 80  #su SRV
+    nc -vz <IP_pubblico_firewall> 8080
+    
     ```
 
 - **Da Rete privata → Internet**
@@ -329,14 +334,16 @@ Il NAT (Network Address Translation) viene utilizzato per tradurre indirizzi IP 
     Il **MASQUERADE** è una forma speciale di SNAT usata quando l’IP pubblico è dinamico (tipico negli accessi domestici o tramite PPPoE).
 
     ```bash
-    # Tutti i pacchetti provenienti dalla LAN 10.0.1.0/25 o DMZ 192.168.0.0/24,
-    # quando escono su eth2 verso Internet, assumono come sorgente l’IP pubblico 5.4.3.2
-    iptables -t nat -A POSTROUTING -o eth2 -s 10.0.1.0/25 -j MASQUERADE
-    iptables -t nat -A POSTROUTING -o eth2 -s 192.168.0.0/24 -j MASQUERADE
+    NET_ID_LAN=10.0.1.0/25
+    
+    iptables -t nat -A POSTROUTING -o $EXT_IF -s $NET_ID_LAN  -j MASQUERADE
     ```
+    > ⚠️ Se non specificassimo `-s <subnet>` tutto il traffico che esce da $EXT_IF (non solo quello proveniente dalla rete 10.0.1.0/25) verrebbe mascherato. Questo potrebbe includere anche pacchetti provenienti da altre interfacce/reti interne (es. DMZ).
+
+
     ***Verifica del funzionamento***
     ```bash
-    tcpdump -i eth2
+    tcpdump -i $EXT_IF
     # Controllare che i pacchetti in uscita abbiano come IP sorgente quello pubblico del firewall
     ```
 
@@ -356,16 +363,17 @@ Esistono due modalità operative:
 
 > Consentire connessioni *TCP* sulla porta 21 da Internet verso il server *FTP ftp.fake.com* e consentire le risposte
 ```bash
+IP_SRV_FTP=155.185.1.2
 # Connessione control (porta 21)
-iptables -t filter -A FORWARD -i eth2 -o eth1 -d 192.168.0.101 -p tcp --dport 21 -m state --state NEW,ESTABLISHED -j ACCEPT
-iptables -t filter -A FORWARD -i eth1 -o eth2 -s 192.168.0.101 -p tcp --sport 21 -m state --state ESTABLISHED -j ACCEPT
+iptables -t filter -A FORWARD -i $EXT_IF -o $DMZ_IF -d $IP_SRV_FTP -p tcp --dport 21 -m state --state NEW,ESTABLISHED -j ACCEPT
+iptables -t filter -A FORWARD -i $DMZ_IF -o $EXT_IF -s $IP_SRV_FTP -p tcp --sport 21 -m state --state ESTABLISHED -j ACCEPT
 
 ```
 > Per il trasferimento dati il server apre una nuova connessione TCP da porta 20 (ftp-data) verso una porta sul client
 ```bash
-# Trasferimento dati (porta 20, active mode)
-iptables -t filter -A FORWARD -p tcp --sport 20 -i eth1 -o eth2 -s 192.168.0.101 -m state --state RELATED,ESTABLISHED -j ACCEPT
-iptables -t filter -A FORWARD -p tcp --dport 20 -i eth2 -o eth1 -d 192.168.0.101 -m state --state ESTABLISHED -j ACCEPT
+# Trasferimento dati (porta 20)
+iptables -t filter -A FORWARD -p tcp --sport 20 -i $EXT_IF -o $DMZ_IF -s $IP_SRV_FTP -m state --state RELATED,ESTABLISHED -j ACCEPT
+iptables -t filter -A FORWARD -p tcp --dport 20 -i $DMZ_IF -o $EXT_IF -d $IP_SRV_FTP -m state --state ESTABLISHED -j ACCEPT
 ```
 
 ***Verifica del funzionamento***:
