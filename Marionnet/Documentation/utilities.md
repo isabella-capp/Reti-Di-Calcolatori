@@ -205,40 +205,54 @@ ssh <ip> #DALLA LAN
 
 ### HTTP
 Il servizio HTTP utilizza il protocollo TCP sulla porta 80. Per permettere l’accesso a un server web da Internet o dalla LAN, è necessario configurare correttamente le regole FORWARD del firewall.
-1. **Connessioni da Internet verso il server web**
 
-    Consentire a qualunque host esterno su Internet di connettersi al server web pubblico:
+1. **Connessioni da Internet verso il server web su DMZ**
+
+    Consentire a qualunque host esterno su Internet di connettersi al server web pubblico su DMZ:
 
     ```bash
-    iptables -t filter -A FORWARD -i eth2 -o eth1 -d 192.168.0.100 -p tcp --dport 80 -m state --state NEW,ESTABLISHED -j ACCEPT
-    iptables -t filter -A FORWARD -i eth1 -o eth2 -s 192.168.0.100 -p tcp --sport 80 -m state --state ESTABLISHED -j ACCEPT
+    IP_SRV=155.185.1.1
+
+    iptables -A FORWARD -p tcp --dport 80 -i $EXT_IF -o $DMZ_IF -d $IP_SRV -m state --state NEW,ESTABLISHED -j ACCEPT
+
+    iptables -A FORWARD -p tcp --sport 80 -i $DMZ_IF -o $EXT_IF -s $IP_SRV -m state --state ESTABLISHED -j ACCEPT
+
     ```
     Spiegazione:
-    - `eth2 → eth1`: traffico proveniente da Internet verso la DMZ.
+    - `$EXT_IF → $DMZ_IF`: traffico proveniente da Internet verso la DMZ.
     - `--dport 80`: pacchetti destinati al server web.
     - `--state NEW,ESTABLISHED`: consente sia nuove connessioni sia pacchetti di sessioni già aperte.
     - Regola inversa (`--sport 80`): consente le risposte del server verso l’host esterno.
 
-    > ⚠️ Se non conosci l’IP sorgente di Internet, puoi omettere la specifica dell’IP sorgente (come in questo esempio).
+     > ⚠️ se il server ha un indirizzo privato, devi anche configurare la regola di PREROUTING per il NAT, in modo che il traffico in ingresso venga inoltrato correttamente al server privato.
 
-2. **Connessioni dalla LAN verso il server web**
-    Consentire agli host della LAN di raggiungere il server web pubblico:
+
+2. **Connessioni dalla LAN verso il server web su DMZ**
+    Consentire agli host della LAN di raggiungere il server web sulla DMZ:
     ```bash
-    iptables -t filter -A FORWARD -i eth0 -o eth1 -s 10.0.1.0/25 -d 192.168.0.100 -p tcp --dport 80 -m state --state NEW,ESTABLISHED -j ACCEPT
-    iptables -t filter -A FORWARD -i eth1 -o eth0 -s 192.168.0.100 -d 10.0.1.0/25 -p tcp --sport 80 -m state --state ESTABLISHED -j ACCEPT
+    IP_SRV=155.185.1.1
+
+    iptables -A FORWARD -p tcp --dport 80 -i $LAN_IF -o $DMZ_IF -d $IP_SRV -m state --state NEW,ESTABLISHED -j ACCEPT
+    
+    iptables -A FORWARD -p tcp --sport 80 -i $DMZ_IF -o $LAN_IF -s $IP_SRV -m state --state ESTABLISHED -j ACCEPT
     ```
     Spiegazione:
-    - `-i eth0 -o eth1` → traffico originato dalla LAN verso la DMZ.
+    - `-i $LAN_IF -o $DMZ_IF` → traffico originato dalla LAN verso la DMZ.
     - `--dport 80` → porta di destinazione HTTP.
     - Risposte tracciate con `--sport 80` e stato ESTABLISHED.
 
-3. **Connessioni da un host pubblico EXT verso un server privato SRV**
-    Se il server web è privato (es. DMZ), devi consentire a uno specifico host pubblico di contattarlo:
+3. **Connessioni dalla LAN verso un server Web in esecuzione su EXT**
+    Se il server web è pubblico (es. EXT) per permettere alla LAN di contattarlo:
+
     ```bash
-    iptables -t filter -A FORWARD -i eth2 -o eth1 -s 2.3.4.5 -d 192.168.0.100 -p tcp --dport 80 -m state --state NEW,ESTABLISHED -j ACCEPT
-    iptables -t filter -A FORWARD -o eth1 -i eth2 -d 192.168.0.100 -d 2.3.4.5 -p tcp --sport 80 -m state --state ESTABLISHED -j ACCEPT
-    ```
-    > ⚠️ se il server è privato, devi anche configurare la regola di PREROUTING per il NAT, in modo che il traffico in ingresso venga inoltrato correttamente al server privato.
+    NET_ID_LAN=10.42.0.0/25
+    IP_EXT=2.20.20.20
+
+    iptables -A FORWARD -i $LAN_IF -o $EXT_IF -p tcp -s $NET_ID_LAN -d $IP_EXT --dport 80 -m state --state NEW,ESTABLISHED -j ACCEPT
+    
+    iptables -A FORWARD -i $EXT_IF -o $LAN_IF -p tcp -s $IP_EXT -d $NET_ID_LAN --sport 80 -m state --state ESTABLISHED -j ACCEPT
+
+    ```   
 
 **Spiegazione**
 
