@@ -60,44 +60,61 @@ iptables -t filter -P FORWARD DROP
 
 Quando blocchiamo esplicitamente tutto il traffico per permettere l'assegnamento degli IP in modo dinamico agli host della LAN dobbiamo consentire il traffico DHCP
 
-**Regole per un client DHCP su eth0**
+**DHCP utilizza UDP sulle porte:**
+- `67` → server DHCP
+- `68` → client DHCP
 
-1. Accettare le risposte del server DHCP (porta 67 → 68)
+🔹 **Primo caso: server DHCP sul firewall (GW)**
+
+- Consentire le *richieste DHCP* dalla **DMZ** verso il **firewall** (client → server): 
+    
     ```bash
-   iptables -A INPUT -i eth0 -p udp --sport 67 --dport 68 -j ACCEPT
-   ```
-   - **Catena:** `INPUT` → pacchetti diretti alla macchina.
-   - **Interfaccia:** `-i eth0` → solo pacchetti in arrivo su eth0.
-   - **Protocollo:** `-p udp` (DHCP usa UDP).
-   - **Porte:**  `--sport 67 --dport 68` → dal server DHCP (67) al client (68).
-   - **Significato:** consente le **risposte del server** 
-   - **Azione:** `ACCEPT` → lascia passare queste risposte verso lo stack locale.
-
-2. Consentire l’inoltro delle richieste DHCP (porta 68 → 67)
-    ```bash
-   iptables -A OUTPUT -o eth0 -p udp --sport 68 --dport 67 -j ACCEPT
-   ```
-
-   * **Catena:** `OUTPUT` → pacchetti originati dalla macchina.
-   * **Interfaccia:** `-o eth0` → inviati su `eth0`.
-   * **Porte:** `--sport 68 --dport 67` → **dal client (68) al server (67)**.
-   * **Significato:** consente le richieste del client(DHCPDISCOVER, DHCPREQUEST).
-
-**Note utili**:
-
-* Le porte **67/68** sono quelle standard DHCPv4 (**server 67**, **client 68**).
-* Queste regole valgono per un client o per un firewall che agisce da relay DHCP.
-* Se la macchina fosse un server DHCP, le regole INPUT/OUTPUT si invertirebbero:
-   ```bash 
-    INPUT: --sport 68 --dport 67
-    OUTPUT: --sport 67 --dport 68
+    iptables -A INPUT -i $DMZ_IF -p udp --sport 68 --dport 67 -j ACCEPT
     ```
+    - **Catena:** `INPUT` → pacchetti diretti al firewall.
+    - **Interfaccia:** `-i $DMZ_IF` → solo pacchetti in arrivo sull'interfaccia della DMZ.
+    - **Protocollo:** `-p udp` (DHCP usa UDP).
+    - **Porte:**  `--sport 68 --dport 67` → dal client (68) al server DHCP (67).
+    - **Azione:** `ACCEPT` → lascia passare queste risposte verso lo stack locale.
+
+- Consentire le *risposte DHCP* dal **firewall** verso la **DMZ** (porta 67 → 68)
+    ```bash
+    iptables -A OUTPUT -o $DMZ_IF -p udp --sport 67 --dport 68 -j ACCEPT
+    ```
+    * **Catena:** `OUTPUT` → pacchetti originati dal firewall.
+    * **Interfaccia:** `-o $DMZ_IF` → inviati sull'interfaccia della DMZ
+    * **Porte:** `--sport 67 --dport 68` → **dal server (67) al client (68)**.
+    - **Azione:** `ACCEPT` → lascia passare queste risposte verso lo stack locale.
+
+🔹 **Secondo caso: server DHCP su un’altra LAN (relay DHCP sul firewall)**
+
+In questo scenario il firewall agisce come DHCP relay, inoltrando richieste/riposte tra gli host della DMZ e il server DHCP esterno.
+- Consentire l’invio delle *richieste DHCP* dal **firewall** verso il **server DHCP** sulla LAN:
+    ```bash
+    iptables -A OUTPUT -o $LAN_IF -p udp -s $IP_DMZ_HOST --sport 67 -d $IP_DHCP_SERVER --dport 67 -m state --state NEW,ESTABLISHED -j ACCEPT
+    ```
+    - **Catena:** `OUTPUT`
+    - **Interfaccia:** `$LAN_IF` ovvero quella della LAN dove sta il server DHCP
+    - **Origine:** `$IP_DMZ_HOST` indirizzo IP dell'host della DMZ che effettua la richiesta
+    - **Destinazione** `$IP_DHCP_SERVER` indirizzo IP del server DHCP che si trova su LAN
+    - **Porte:** `67 → 67` perché il relay genera nuovi pacchetti per il server DHCP
+ - Consentire le *risposte DHCP* del **server DHCP** sulla LAN verso il **firewall**
+    ```bash
+    iptables -A INPUT -i $LAN_IF -p udp -s $IP_DHCP_SERVER --sport 67 -d $IP_DMZ_HOST --dport 67 -m state --state ESTABLISHED -j ACCEPT
+    ```
+    - **Catena:** `INPUT`
+    - **Interfaccia:** `$LAN_IF`
+    - **Origine:** `$IP_DHCP_SERVER`
+    - **Destinazione:** `$IP_DMZ_HOST`
+    - **Porte:** `67 → 67`
+> ⚠️ **Nota:** nello scenario relay, i pacchetti DHCP non mantengono le porte client/server originali. Il firewall agisce in prima persona nei confronti del server DHCP esterno.
+
 ***Verifica del funzionamento***:
 ```bash
 ifdown -a   # Su un host che utilizza DHCP
 ifup -a     # Su un host che utilizza il DHCP
 ```
-
+Gli host dovranno ricevere correttamente un indirizzo IP dalla rete prevista.
 
 ### DNS
 Il DNS è il servizio che permette di risolvere nomi di dominio in indirizzi IP. Per garantire la connettività tra client e server DNS, è necessario configurare correttamente il firewall, consentendo sia le richieste dei client sia le risposte del server.
@@ -112,11 +129,12 @@ Il DNS è il servizio che permette di risolvere nomi di dominio in indirizzi IP.
 
     Per consentire ai client della LAN o DMZ di interrogare il server DNS sul firewall:
     ```bash
+    NET_ID_LAN=10.0.1.0/25
     # Richieste in ingresso al firewall (porta destinazione 53)
-    iptables -A INPUT -i eth0 -p udp -s 10.0.1.0/25 --dport 53 -m state --state NEW,ESTABLISHED -j ACCEPT
+    iptables -A INPUT -i $LAN_IF -p udp -s $NET_ID_LAN --dport 53 -m state --state NEW,ESTABLISHED -j ACCEPT
 
     # Risposte generate dal firewall verso i client
-    iptables -A OUTPUT -o eth0 -p udp -d 10.0.1.0/25 --sport 53 -m state --state ESTABLISHED -j ACCEPT
+    iptables -A OUTPUT -o $LAN_IF -p udp -d $NET_ID_LAN --sport 53 -m state --state ESTABLISHED -j ACCEPT
     ```
     Spiegazione porte:
 
@@ -127,11 +145,14 @@ Il DNS è il servizio che permette di risolvere nomi di dominio in indirizzi IP.
 2. **Regole DNS per traffico tra subnet (FORWARD)**
     Se il firewall deve inoltrare le richieste DNS dalla DMZ verso un server DNS nella LAN:
     ```bash
-    # Richieste DNS LAN -> DMZ
-    iptables -t filter -A FORWARD -i eth0 -o eth1 -p udp --dport 53 -s 10.0.1.0/25 -d 192.168.0.102 -m state --state NEW,ESTABLISHED -j ACCEPT
+    NET_ID_DMZ=155.185.1.0/29
+    IP_DNS_SERVER=192.168.1.253
 
-    # Risposte DNS DMZ -> LAN
-    iptables -t filter -A FORWARD -i eth1 -o eth0 -p udp --sport 53 -s 192.168.0.102 -d 10.0.1.0/25 -m state --state ESTABLISHED -j ACCEPT
+    # Richieste DNS DMZ -> LAN
+    iptables -t filter -A FORWARD -i $DMZ_IF -o $LAN_IF -p udp --dport 53 -s $NET_ID_DMZ -d $IP_DNS_SERVER -m state --state NEW,ESTABLISHED -j ACCEPT
+
+    # Risposte DNS LAN -> DMZ
+    iptables -t filter -A FORWARD -i $LAN_IF -o $DMZ_IF -p udp --sport 53 -s $IP_DNS_SERVER -d $NET_ID_DMZ -m state --state ESTABLISHED -j ACCEPT
     ```
 
     Spiegazione:
@@ -147,30 +168,31 @@ dig google.com
 ```
 Se ricevi una risposta corretta, significa che le regole INPUT, OUTPUT e FORWARD consentono correttamente le richieste e le risposte DNS
 
-### SHH
+### SSH
 
 Il servizio SSH permette di gestire in modo sicuro i dispositivi della rete tramite accesso remoto. Per consentire connessioni SSH verso il firewall o server dalla LAN, è necessario configurare correttamente le regole del firewall.
 
 ```bash
-# Consentire connessioni SSH in ingresso dalla LAN
-iptables -A INPUT -i eth0 -p tcp -s 10.0.1.0/25 --dport 22 -m state --state NEW,ESTABLISHED -j ACCEPT
+LAN_HOST=192.168.1.2
+# Consentire connessioni SSH da un host della LAN al Firewall
+iptables -A INPUT -i $LAN_IF -p tcp -s $LAN_HOST --dport 22 -m state --state NEW,ESTABLISHED -j ACCEPT
 
-# Consentire risposte SSH in uscita verso il client
-iptables -A OUTPUT -o eth0 -p tcp -d 10.0.1.0/25 --sport 22 -m state --state ESTABLISHED -j ACCEPT
+# Consentire risposte SSH dal Firewall all'host della LAN
+iptables -A OUTPUT -o $LAN_IF -p tcp -d $LAN_HOST --sport 22 -m state --state ESTABLISHED -j ACCEPT
 ```
 
 **Spiegazione delle regole:**
 
 - **INPUT**
-    - `-i eth0` → pacchetti in arrivo sull’interfaccia della LAN.
+    - `-i $LAN_IF` → pacchetti in arrivo sull’interfaccia della LAN.
     - `-p tcp` → SSH utilizza TCP.
     - `--dport 22` → porta standard SSH.
-    - `-s <subnet>>` → solo il client autorizzato può connettersi.
+    - `-s <subnet>` → solo il client autorizzato può connettersi.
     - `--state NEW,ESTABLISHED` → permette nuove connessioni e pacchetti di sessioni già stabilite.
     - `-j ACCEPT` → accetta i pacchetti corrispondenti.
 
 - **OUTPUT**
-   - `-o eth0` → pacchetti in uscita sull’interfaccia LAN.
+   - `-o $LAN_IF` → pacchetti in uscita sull’interfaccia LAN.
    - `--sport 22` → pacchetti generati dal firewall/host SSH.
    - `-d <subnet>` → verso il client autorizzato.
    - `--state ESTABLISHED` → solo pacchetti di sessioni già aperte.
