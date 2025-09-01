@@ -6,19 +6,7 @@ Quando si lavora con i firewall, è buona pratica seguire un approccio graduale:
 
 Per coerenza, tutti gli esempi utilizzano questo schema di rete:
 
-- **Firewall (gateway)**
-    - `eth0` → `10.0.1.1`
-    - `eth1` → `192.168.0.1`
-    - `eth2` → `5.4.3.2`
-- LAN `10.0.1.0/25`
-    - H1: `10.0.1.10`
-    - H2: `10.0.1.11`
-- DMZ `192.168.0.0/24`
-    - Web server: `192.168.0.100`
-    - FTP server: `192.168.0.101`
-    - DNS server: `192.168.0.102`
-- Internet
-    - EXT `2.3.4.5`
+[image.png](/Marionnet/img/image.png)
 
 ### Pulizia delle regole esistenti
 
@@ -43,6 +31,7 @@ iptables -P FORWARD ACCEPT
 echo "Firewall reset: tutte le regole rimosse, traffico consentito."
 
 ```
+> ⚠️ Non inserire nello script da lanciare sulle macchine 
 
 ### Policy di blocco totale
 
@@ -91,21 +80,27 @@ Quando blocchiamo esplicitamente tutto il traffico per permettere l'assegnamento
 In questo scenario il firewall agisce come DHCP relay, inoltrando richieste/riposte tra gli host della DMZ e il server DHCP esterno.
 - Consentire l’invio delle *richieste DHCP* dal **firewall** verso il **server DHCP** sulla LAN:
     ```bash
-    iptables -A OUTPUT -o $LAN_IF -p udp -s $IP_DMZ_HOST --sport 67 -d $IP_DHCP_SERVER --dport 67 -m state --state NEW,ESTABLISHED -j ACCEPT
+    IP_SRV_HTTP=155.185.1.1
+    IP_DHCP_SERVER=192.168.1.253
+
+    iptables -A OUTPUT -o $LAN_IF -p udp -s $IP_SRV_HTTP --sport 67 -d $IP_DHCP_SERVER --dport 67 -m state --state NEW,ESTABLISHED -j ACCEPT
     ```
     - **Catena:** `OUTPUT`
     - **Interfaccia:** `$LAN_IF` ovvero quella della LAN dove sta il server DHCP
-    - **Origine:** `$IP_DMZ_HOST` indirizzo IP dell'host della DMZ che effettua la richiesta
+    - **Origine:** `$IP_SRV_HTTP` indirizzo IP dell'host della DMZ che effettua la richiesta
     - **Destinazione** `$IP_DHCP_SERVER` indirizzo IP del server DHCP che si trova su LAN
     - **Porte:** `67 → 67` perché il relay genera nuovi pacchetti per il server DHCP
  - Consentire le *risposte DHCP* del **server DHCP** sulla LAN verso il **firewall**
     ```bash
-    iptables -A INPUT -i $LAN_IF -p udp -s $IP_DHCP_SERVER --sport 67 -d $IP_DMZ_HOST --dport 67 -m state --state ESTABLISHED -j ACCEPT
+    IP_SRV_HTTP=155.185.1.1
+    IP_DHCP_SERVER=192.168.1.253
+
+    iptables -A INPUT -i $LAN_IF -p udp -s $IP_DHCP_SERVER --sport 67 -d $IP_SRV_HTTP --dport 67 -m state --state ESTABLISHED -j ACCEPT
     ```
     - **Catena:** `INPUT`
     - **Interfaccia:** `$LAN_IF`
     - **Origine:** `$IP_DHCP_SERVER`
-    - **Destinazione:** `$IP_DMZ_HOST`
+    - **Destinazione:** `$IP_SRV_HTTP`
     - **Porte:** `67 → 67`
 > ⚠️ **Nota:** nello scenario relay, i pacchetti DHCP non mantengono le porte client/server originali. Il firewall agisce in prima persona nei confronti del server DHCP esterno.
 
@@ -127,14 +122,14 @@ Il DNS è il servizio che permette di risolvere nomi di dominio in indirizzi IP.
 
 1. **Traffico DNS verso il firewall (INPUT/OUTPUT):**
 
-    Per consentire ai client della LAN o DMZ di interrogare il server DNS sul firewall:
+    Per consentire ai client della DMZ di interrogare il server DNS sul firewall:
     ```bash
-    NET_ID_LAN=10.0.1.0/25
+    NET_ID_DMZ=155.185.1.0/29
     # Richieste in ingresso al firewall (porta destinazione 53)
-    iptables -A INPUT -i $LAN_IF -p udp -s $NET_ID_LAN --dport 53 -m state --state NEW,ESTABLISHED -j ACCEPT
+    iptables -A INPUT -i $DMZ_IF -p udp -s $NET_ID_DMZ --dport 53 -m state --state NEW,ESTABLISHED -j ACCEPT
 
     # Risposte generate dal firewall verso i client
-    iptables -A OUTPUT -o $LAN_IF -p udp -d $NET_ID_LAN --sport 53 -m state --state ESTABLISHED -j ACCEPT
+    iptables -A OUTPUT -o $DMZ_IF -p udp -d $NET_ID_DMZ --sport 53 -m state --state ESTABLISHED -j ACCEPT
     ```
     Spiegazione porte:
 
@@ -245,8 +240,8 @@ Il servizio HTTP utilizza il protocollo TCP sulla porta 80. Per permettere l’a
     Se il server web è pubblico (es. EXT) per permettere alla LAN di contattarlo:
 
     ```bash
-    NET_ID_LAN=10.42.0.0/25
-    IP_EXT=2.20.20.20
+    NET_ID_LAN=192.168.1.0/24
+    IP_EXT=11.22.33.211
 
     iptables -A FORWARD -i $LAN_IF -o $EXT_IF -p tcp -s $NET_ID_LAN -d $IP_EXT --dport 80 -m state --state NEW,ESTABLISHED -j ACCEPT
     
@@ -334,7 +329,7 @@ Il NAT (Network Address Translation) viene utilizzato per tradurre indirizzi IP 
     Il **MASQUERADE** è una forma speciale di SNAT usata quando l’IP pubblico è dinamico (tipico negli accessi domestici o tramite PPPoE).
 
     ```bash
-    NET_ID_LAN=10.0.1.0/25
+    NET_ID_LAN=192.168.1.0/24
     
     iptables -t nat -A POSTROUTING -o $EXT_IF -s $NET_ID_LAN  -j MASQUERADE
     ```
