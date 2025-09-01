@@ -6,7 +6,7 @@ Quando si lavora con i firewall, è buona pratica seguire un approccio graduale:
 
 Per coerenza, tutti gli esempi utilizzano questo schema di rete:
 
-[image.png](/Marionnet/img/image.png)
+![image.png](/Marionnet/img/image.png)
 
 ### Pulizia delle regole esistenti
 
