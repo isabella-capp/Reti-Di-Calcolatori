@@ -173,7 +173,7 @@ no-resolv
 expand-hosts
 domain=local
 
-interface=eth0
+interface=eth0.42
 dhcp-option=3,10.42.0.126  #server DHCP - IP della sua VLAN
 dhcp-option=6,10.42.0.126  #server DNS
 dhcp-option=15,local
@@ -296,8 +296,8 @@ iptables -t filter -A OUTPUT -o $LAN_IF -p tcp -d 10.42.0.1 --sport 22 -m state 
 #------------------------------------------------
 # H1, H2 -> EXT : HTTP -> 80
 #------------------------------------------------
-iptables -A FORWARD -p tcp -i $LAN_IF -o $EXT_IF --dport 80 -j ACCEPT
-iptables -A FORWARD -p tcp -o $EXT_IF -i $LAN_IF --sport 80 -m state --state ESTABLISHED,RELATED -j ACCEPT
+iptables -A FORWARD -i $LAN_IF -o $EXT_IF -p tcp -s 10.42.0.0/25 -d 2.20.20.20 --dport 80 -m state --state NEW,ESTABLISHED -j ACCEPT
+iptables -A FORWARD -i $EXT_IF -o $LAN_IF -p tcp -s 2.20.20.20 -d 10.42.0.0/25 --sport 80 -m state --state ESTABLISHED -j ACCEPT
 
 #-------------------------------------------------
 # EXT -> SRV: utilizzando ip pubblico di GW
@@ -306,7 +306,6 @@ iptables -t nat -A PREROUTING -p tcp --dport 80 -i $EXT_IF -j DNAT --to-destinat
 
 iptables -A FORWARD -p tcp --dport 80 -i $EXT_IF -o $DMZ_IF -d 10.42.0.129 -m state --state NEW,ESTABLISHED -j ACCEPT
 iptables -A FORWARD -p tcp --sport 80 -i $DMZ_IF -o $EXT_IF -s 10.42.0.129 -m state --state ESTABLISHED -j ACCEPT
-
 
 #-------------------------------------------------
 # ICMP
