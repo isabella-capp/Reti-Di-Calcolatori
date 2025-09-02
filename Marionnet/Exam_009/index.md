@@ -34,8 +34,9 @@
    - **NetID**: 155.185.48.0
    - **VLANID**: 10
    - **Interfaccia**: eth0
-        - **Indirizzo IP**: 155.185.54.1
+        - **Indirizzo IP**: 155.185.48.1
         - **Netmask**: 255.255.255.0
+> Il testo dell'esercizio riporta 155.185.54.1 ma non sarebbe all'interno della sottorete che viene fornita. Pertanto utilizziamo l'indirizzo 155.185.48.1
 
 ### SrvInt
    - **NetID**: 192.168.30.0
@@ -217,7 +218,7 @@ ifup -a
 interfaces="
 auto eth0
 iface eth0 inet static
-      address 155.185.54.1
+      address 155.185.48.1
       netmask 255.255.255.0
       gateway 155.185.48.254
 "
