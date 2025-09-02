@@ -140,7 +140,7 @@ iface eth0.10 inet static
 
 auto eth0.20
 iface eth0.20 inet static
-        address 192.168.10.254
+        address 192.168.20.254
         netmask 255.255.255.0
 
 auto eth0.30
@@ -219,7 +219,7 @@ auto eth0
 iface eth0 inet static
       address 155.185.54.1
       netmask 255.255.255.0
-      gateway 192.168.10.254
+      gateway 155.185.48.254
 "
 
 echo "$interfaces" >> /etc/network/interfaces
@@ -231,6 +231,8 @@ ifup -a
 ## Configurazione firewall
 
 ```bash
+#!/bin/bash
+
 EXT_IF="eth0.10"
 NET_ID_LAN="192.168.20.0/24"
 NET_ID_DMZ="192.168.30.0/24"
@@ -246,5 +248,7 @@ iptables -t nat -A POSTROUTING -o $EXT_IF -s $NET_ID_DMZ  -j MASQUERADE
 # DNAT: server sulla porta 80 di SrvInt che deve apparire sulla porta 8000 di R1
 #-----------------------------------------  
 iptables -t nat -A PREROUTING -p tcp --dport 8000 -i $EXT_IF -j DNAT --to-destination $IP_SRV_INT:80
+
+iptables -t nat -A PREROUTING -p tcp --dport 8000 -i $LAN_IF -j DNAT --to-destination $IP_SRV_INT:80
 
 ```
