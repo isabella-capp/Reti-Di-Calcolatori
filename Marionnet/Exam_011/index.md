@@ -222,8 +222,6 @@ echo "EXT network configuration added."
 ```bash
 #!/bin/bash
 
-#!/bin/bash
-
 EXT_IF="eth1"
 NET_ID_LAN_1="10.0.10.0/24"
 NET_ID_LAN_2="10.0.20.0/24"
