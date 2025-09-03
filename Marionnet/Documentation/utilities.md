@@ -198,6 +198,21 @@ iptables -A OUTPUT -o $LAN_IF -p tcp -d $LAN_HOST --sport 22 -m state --state ES
 ssh <ip> #DALLA LAN
 ```
 
+Consentire alla macchina **EXT** aprire una connessione TCP sulla porta 22 di una **macchina all'interno della LAN** utilizzando l’IP pubblico associato all’interfaccia `$EXT_IF` del firewall come indirizzo di destinazione
+
+```bash
+IP_EXT="11.22.33.211" 
+IP_GW_EXT="155.185.1.9"
+HOST_LAN="192.168.1.2"
+
+iptables -t filter -A FORWARD -i $EXT_IF -o $LAN_IF -s $IP_EXT -p tcp --dport 22 -m state --state NEW,ESTABLISHED -j ACCEPT
+iptables -t filter -A FORWARD -o $EXT_IF -i $LAN_IF -d $IP_EXT -p tcp --sport 22 -m state --state ESTABLISHED -j ACCEPT
+```
+> Ricordarsi di effettuare il prerouting:
+```bash
+iptables -t nat -A PREROUTING -p tcp --dport 22 -i $EXT_IF -s $IP_EXT -d $IP_GW_EXT -j DNAT --to-destination $HOST_LAN:22
+```
+
 ### HTTP
 Il servizio HTTP utilizza il protocollo TCP sulla porta 80. Per permettere l’accesso a un server web da Internet o dalla LAN, è necessario configurare correttamente le regole FORWARD del firewall.
 
