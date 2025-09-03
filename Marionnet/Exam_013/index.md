@@ -161,7 +161,7 @@ dhcp-option=6,192.168.1.126  #server DNS
 dhcp-option=15,local
 
 #devo assegnare a Srv sempre lo stesso indirizzo 
-dhcp-host=02:04:06:11:22:33,Srv,192.168.1.1
+dhcp-host=02:04:06:8b:b0:6c,Srv,192.168.1.1
 
 #Trovo il min/max con ipcalc
 dhcp-range=192.168.1.2,192.168.1.125,255.255.255.128,12h
