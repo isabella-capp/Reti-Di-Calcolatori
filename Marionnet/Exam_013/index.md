@@ -241,6 +241,13 @@ iptables -t filter -P OUTPUT DROP
 iptables -t filter -P FORWARD DROP
 
 #--------------------------------------------------
+# ICMP
+#--------------------------------------------------
+iptables -t filter -A INPUT   -p icmp -j ACCEPT
+iptables -t filter -A OUTPUT  -p icmp -j ACCEPT
+iptables -t filter -A FORWARD -p icmp -j ACCEPT
+
+#--------------------------------------------------
 # DHCP
 #--------------------------------------------------
 iptables -A INPUT -i $LAN_IF -p udp --sport 68 --dport 67 -j ACCEPT
@@ -272,14 +279,18 @@ iptables -t nat -A PREROUTING -p tcp --dport 80 -i $EXT_IF -j DNAT --to-destinat
 
 iptables -A FORWARD -p tcp --dport 80 -i $EXT_IF -o $LAN_IF -d $IP_SRV -m state --state NEW,ESTABLISHED -j ACCEPT
 
-iptables -A FORWARD -p tcp --sport 80 -i $DMZ_IF -o $LAN_IF -s $IP_SRV -m state --state ESTABLISHED -j ACCEPT
+iptables -A FORWARD -p tcp --sport 80 -i $LAN_IF -o $EXT_IF -s $IP_SRV -m state --state ESTABLISHED -j ACCEPT
 
 #----------------------------------------------------
 # EXT -> H1 (SSH)
 #----------------------------------------------------
 iptables -t nat -A PREROUTING -p tcp --dport 22 -i $EXT_IF -j DNAT --to-destination $LAN_HOST:22
 
-iptables -A INPUT -i $EXT_IF -p tcp -s $IP_EXT --dport 22 -m state --state NEW,ESTABLISHED -j ACCEPT
-iptables -A OUTPUT -o $LAN_IF -p tcp -d $IP_EXT --sport 22 -m state --state ESTABLISHED -j ACCEPT
+# Pacchetti nuovi e stabiliti verso H1
+iptables -A FORWARD -i $EXT_IF -o $LAN_IF -p tcp -d $LAN_HOST --dport 22 -m state --state NEW,ESTABLISHED -j ACCEPT
+
+# Risposte di H1 verso EXT
+iptables -A FORWARD -i $LAN_IF -o $EXT_IF -p tcp -s $LAN_HOST --sport 22 -m state --state ESTABLISHED -j ACCEPT
+
 
 ```
