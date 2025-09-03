@@ -231,7 +231,7 @@ echo "EXT network configuration added."
 LAN_IF="eth0"
 EXT_IF="eth1"
 NET_ID_LAN="192.168.1.0/25"
-LAN_HOST=
+LAN_HOST=192.168.1.100
 IP_EXT="2.1.3.4"
 IP_SRV="192.168.1.1"
 
