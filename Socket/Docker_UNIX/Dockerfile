@@ -15,6 +15,7 @@ RUN apt update && apt install -y \
     procps \
     dnsutils \
     netcat-openbsd \
+    tcpdump \
     && apt clean
 
 # Imposta la directory di lavoro
