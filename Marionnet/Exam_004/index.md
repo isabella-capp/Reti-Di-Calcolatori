@@ -64,6 +64,7 @@ Si chiede inoltre di implementare SNAT per ogni nodo e DNAT per:
     - **Netmask**: 255.255.255.255
 
 
+## NO VLAN
 ### H1
 
 ```bash
@@ -200,14 +201,16 @@ echo "EXT network configuration added."
 #---------------------------------------------
 NET_ID_LAN_1="192.168.1.0/24"
 NET_ID_LAN_2="192.168.2.0/24"
+EXT_IF="eth0"
+
 iptables -t nat -A POSTROUTING -o $EXT_IF -s $NET_ID_LAN_1  -j MASQUERADE
 iptables -t nat -A POSTROUTING -o $EXT_IF -s $NET_ID_LAN_1  -j MASQUERADE
 
 #---------------------------------------------
 # DNAT
 #---------------------------------------------
-IP_SRV_2= 192.168.2.1
-IP_SRV_1= 192.168.1.1
+IP_SRV_2="192.168.2.1"
+IP_SRV_1="192.168.1.1"
 
 iptables -t nat -A PREROUTING -p tcp --dport 8080 -i $EXT_IF -j DNAT --to-destination $IP_SRV_2:80
 iptables -t nat -A PREROUTING -p tcp --dport 80 -i $EXT_IF -j DNAT --to-destination $IP_SRV_1:80
