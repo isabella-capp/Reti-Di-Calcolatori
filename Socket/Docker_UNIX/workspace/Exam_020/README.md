@@ -1,82 +1,97 @@
-## 🔹 Esercizio B — Conteggio parole da file
+# 🔹 Esercizio B — Conteggio parole da file
 
-**Obiettivo:** lavorare con file di testo e strutture dati.
-
-* Il **client** invia il nome di un file (stringa).
-* Il **server** apre il file (locale al server), conta quante volte appare ogni parola, e risponde con un JSON del tipo:
-
-  ```json
-  {
-    "wordcount": {
-      "ciao": 3,
-      "mondo": 1,
-      "python": 2
-    }
-  }
-  ```
-* Il **client** stampa le 5 parole più frequenti.
+**Obiettivo:** esercitarsi nella gestione di **file di testo**, nell’uso di **dizionari** per il conteggio delle frequenze, e nello scambio di dati strutturati in **JSON** tra client e server.
 
 ---
 
-## 🔹 Esercizio C — Manipolazione stringhe
+## 📦 Specifiche del protocollo
 
-**Obiettivo:** parsing e trasformazioni di stringa.
+### Messaggio del client → server
 
-* Il **client** invia una stringa arbitraria.
-* Il **server** risponde con un dizionario JSON che contiene:
+Il client invia al server una stringa contenente il **nome di un file** (es. `"testo.txt"`).
+Il file si trova **sul filesystem del server** (non viene trasferito dal client).
 
-  * `"uppercase"` → stringa tutta maiuscola
-  * `"lowercase"` → stringa tutta minuscola
-  * `"reverse"` → stringa invertita
-  * `"length"` → lunghezza della stringa
+---
 
-Esempio:
+### Comportamento del server
+
+1. Si mette in ascolto su una porta TCP (es. `3000`).
+2. Riceve dal client il nome del file.
+3. Apre il file in sola lettura. Se il file non esiste → risponde con un JSON:
+
+   ```json
+   { "error": "file not found" }
+   ```
+4. Se il file esiste:
+
+   * Legge il contenuto.
+   * Divide il testo in parole (puoi usare come separatori: spazi, punteggiatura, newline).
+   * Conta quante volte appare ogni parola, usando un dizionario (`word → count`).
+   * Crea una risposta in formato JSON del tipo:
+
+     ```json
+     {
+       "wordcount": {
+         "ciao": 3,
+         "mondo": 1,
+         "python": 2
+       }
+     }
+     ```
+5. Invia la risposta al client.
+
+---
+
+### Comportamento del client
+
+1. Prende il nome del file da **parametro linea di comando**.
+
+   ```bash
+   python3 client.py testo.txt
+   ```
+2. Invia il nome del file al server.
+3. Riceve la risposta JSON.
+4. Se c’è `"error"` → stampa il messaggio di errore.
+5. Se c’è `"wordcount"` → elabora il dizionario e stampa le **5 parole più frequenti**, ordinate per frequenza decrescente.
+
+   * A parità di frequenza, si può ordinare in ordine alfabetico.
+
+---
+
+## 👉 Esempio di interazione
+
+Supponiamo che il file `testo.txt` sul server contenga:
+
+```
+ciao mondo
+ciao python
+ciao python ciao
+```
+
+### Client invia:
+
+```
+"testo.txt"
+```
+
+### Server risponde:
 
 ```json
 {
-  "uppercase": "CIAO",
-  "lowercase": "ciao",
-  "reverse": "oaic",
-  "length": 4
+  "wordcount": {
+    "ciao": 4,
+    "mondo": 1,
+    "python": 2
+  }
 }
 ```
 
----
+### Output del client:
 
-## 🔹 Esercizio D — Database studenti
+```
+Le 5 parole più frequenti:
+1. ciao → 4
+2. python → 2
+3. mondo → 1
+```
 
-**Obiettivo:** JSON + dizionari + gestione file.
-
-* Il **server** mantiene un database studenti in un file JSON, es.:
-
-  ```json
-  [
-    {"matricola": "123", "nome": "Luca", "voto": 28},
-    {"matricola": "456", "nome": "Anna", "voto": 30}
-  ]
-  ```
-* Il **client** può inviare richieste:
-
-  * `{"action": "list"}`
-  * `{"action": "get", "matricola": "123"}`
-  * `{"action": "insert", "matricola": "789", "nome": "Marco", "voto": 25}`
-* Il **server** risponde in JSON con i dati o con errori.
-* Tutti gli inserimenti vengono salvati sul file per la persistenza.
-
----
-
-## 🔹 Esercizio E — Calcolatrice distribuita
-
-**Obiettivo:** gestione di numeri e operazioni.
-
-* Il **client** invia un JSON con due numeri e un’operazione, ad esempio:
-
-  ```json
-  {"op": "mul", "a": 5, "b": 3}
-  ```
-* Il **server** esegue l’operazione (`add`, `sub`, `mul`, `div`) e risponde:
-
-  ```json
-  {"result": 15}
-  ```
-* Se l’operazione non è valida → `{"error": "invalid operation"}`
