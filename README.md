@@ -50,15 +50,12 @@ La cartella `Socket/` contiene esercizi pratici di programmazione socket in Pyth
 ```bash
 # Utilizzo dell'ambiente Docker
 cd Socket/Docker_UNIX
-docker-compose up -d
-
-# Accesso al container
-docker exec -it <container_name> bash
+docker-compose up --build -d
 
 # Esecuzione di un esercizio
 cd workspace/Exam_XXX
-python3 server.py &
-python3 client.py localhost
+python3 server.py 
+python3 client.py <params>
 ```
 
 ## 📚 Argomenti Trattati
