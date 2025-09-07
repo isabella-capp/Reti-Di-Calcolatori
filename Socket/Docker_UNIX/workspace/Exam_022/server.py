@@ -2,7 +2,6 @@ import socket
 import signal
 import sys
 import json
-import collections
 
 def server():
     HOST = ''       # Ascolta su tutte le interfacce
