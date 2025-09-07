@@ -130,7 +130,7 @@ Ogni esercizio include:
 - Prof. **Ricardo Lancellotti** - Università di Modena e Reggio Emilia
 - Prof. **Mirko Marchetti** - Università di Modena e Reggio Emilia
 
-**Repository mantenuto da:** [Isabella Cappelletti](https://github.com/isabella-capp)
+**Repository mantenuto da:** [Isabella Cappellino](https://github.com/isabella-capp)
 
 ---
 
